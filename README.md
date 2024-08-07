@@ -9,7 +9,7 @@ Tres botones ,
 EEPROM integrada en el Arduino ,
 
 
-Conexiones
+# Conexiones
 Pantalla OLED SSD1306:
 
 VCC a 5V
@@ -20,8 +20,7 @@ SCL a A5
 
 SDA a A4
 
-
-Botones:
+# Botones:
 
 Botón Arriba: un pin digital (D2)
 
@@ -30,6 +29,7 @@ Botón Abajo: un pin digital (D3)
 Botón Enter: un pin digital (D4)
 
 
+# Librerías
 
 [Adafruit-GFX](https://github.com/adafruit/Adafruit-GFX-Library)
 
