@@ -27,6 +27,7 @@ int currentMode = 0; // 0: View, 1: Edit
 int editCursor = 0;
 bool editingTitle = true;
 unsigned long enterPressTime = 0;
+bool enterButtonPressed = false;
 
 void setup() {
   pinMode(BUTTON_UP, INPUT_PULLDOWN);
@@ -44,70 +45,16 @@ void setup() {
   display.clearDisplay();
 
   // Inicializar registros si la EEPROM está vacía
-  //if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
-  //  writeRecordsToEEPROM();
-  //}
+  if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
+    writeRecordsToEEPROM();
+  }
 
   // Cargar registros desde EEPROM
   readRecordsFromEEPROM();
 }
 
 void loop() {
-  if (digitalRead(BUTTON_UP) == HIGH) {
-    if (currentMode == 1) {
-      if (editingTitle) {
-        records[currentRecord].title[editCursor]++;
-      } else {
-        records[currentRecord].content[editCursor]++;
-      }
-    } else {
-      currentRecord = (currentRecord + 1) % NUM_RECORDS;
-    }
-    delay(200);
-  }
-  if (digitalRead(BUTTON_DOWN) == HIGH) {
-    if (currentMode == 1) {
-      if (editingTitle) {
-        records[currentRecord].title[editCursor]--;
-      } else {
-        records[currentRecord].content[editCursor]--;
-      }
-    } else {
-      currentRecord = (currentRecord - 1 + NUM_RECORDS) % NUM_RECORDS;
-    }
-    delay(200);
-  }
-  if (digitalRead(BUTTON_ENTER) == HIGH) {
-    if (enterPressTime == 0) {
-      enterPressTime = millis();
-    } else if (millis() - enterPressTime >= 3000) {
-      // Guardar cambios después de 3 segundos
-      currentMode = 0;
-      editCursor = 0;
-      editingTitle = true;
-
-      // Encriptar y guardar en EEPROM
-      encrypt(records[currentRecord].title, TITLE_SIZE);
-      encrypt(records[currentRecord].content, CONTENT_SIZE);
-      EEPROM.put(currentRecord * sizeof(Record), records[currentRecord]);
-
-      // Desencriptar para mostrar
-      decrypt(records[currentRecord].title, TITLE_SIZE);
-      decrypt(records[currentRecord].content, CONTENT_SIZE);
-
-      enterPressTime = 0;
-    }
-  } else {
-    if (enterPressTime != 0 && millis() - enterPressTime < 3000) {
-      // Cambiar modo si el botón Enter se soltó antes de 3 segundos
-      currentMode = !currentMode;
-      if (currentMode == 1) {
-        editCursor = 0;
-        editingTitle = true;
-      }
-      enterPressTime = 0;
-    }
-  }
+  handleButtonPresses();
 
   display.clearDisplay();
   display.setTextSize(1);
@@ -128,32 +75,66 @@ void loop() {
   if (currentMode == 1) {
     // Mostrar indicador de edición
     display.fillRect(editCursor * 6, editingTitle ? 10 : 20, 6, 8, SSD1306_INVERSE);
-    
-    if (digitalRead(BUTTON_ENTER) == HIGH) {
-      editCursor++;
-      if (editingTitle && editCursor >= TITLE_SIZE) {
-        editingTitle = false;
-        editCursor = 0;
-      } else if (!editingTitle && editCursor >= CONTENT_SIZE) {
-        // Finalizar edición
-        currentMode = 0;
-        editCursor = 0;
-        editingTitle = true;
-
-        // Encriptar y guardar en EEPROM
-        encrypt(records[currentRecord].title, TITLE_SIZE);
-        encrypt(records[currentRecord].content, CONTENT_SIZE);
-        EEPROM.put(currentRecord * sizeof(Record), records[currentRecord]);
-
-        // Desencriptar para mostrar
-        decrypt(records[currentRecord].title, TITLE_SIZE);
-        decrypt(records[currentRecord].content, CONTENT_SIZE);
-      }
-      delay(200);
-    }
   }
 
   display.display();
+}
+
+void handleButtonPresses() {
+  if (digitalRead(BUTTON_UP) == HIGH) {
+    if (currentMode == 1) {
+      if (editingTitle) {
+        records[currentRecord].title[editCursor]++;
+      } else {
+        records[currentRecord].content[editCursor]++;
+      }
+    } else {
+      currentRecord = (currentRecord + 1) % NUM_RECORDS;
+    }
+    delay(200); // Debounce delay
+  } else if (digitalRead(BUTTON_DOWN) == HIGH) {
+    if (currentMode == 1) {
+      if (editingTitle) {
+        records[currentRecord].title[editCursor]--;
+      } else {
+        records[currentRecord].content[editCursor]--;
+      }
+    } else {
+      currentRecord = (currentRecord - 1 + NUM_RECORDS) % NUM_RECORDS;
+    }
+    delay(200); // Debounce delay
+  } else if (digitalRead(BUTTON_ENTER) == HIGH) {
+    if (!enterButtonPressed) {
+      enterPressTime = millis();
+      enterButtonPressed = true;
+    } else if (millis() - enterPressTime >= 3000) {
+      // Guardar cambios después de 3 segundos
+      currentMode = 0;
+      editCursor = 0;
+      editingTitle = true;
+
+      // Encriptar y guardar en EEPROM
+      encrypt(records[currentRecord].title, TITLE_SIZE);
+      encrypt(records[currentRecord].content, CONTENT_SIZE);
+      EEPROM.put(currentRecord * sizeof(Record), records[currentRecord]);
+
+      // Desencriptar para mostrar
+      decrypt(records[currentRecord].title, TITLE_SIZE);
+      decrypt(records[currentRecord].content, CONTENT_SIZE);
+
+      enterButtonPressed = false;
+    }
+  } else {
+    if (enterButtonPressed && millis() - enterPressTime < 3000) {
+      // Cambiar modo si el botón Enter se soltó antes de 3 segundos
+      currentMode = !currentMode;
+      if (currentMode == 1) {
+        editCursor = 0;
+        editingTitle = true;
+      }
+      enterButtonPressed = false;
+    }
+  }
 }
 
 void writeRecordsToEEPROM() {
