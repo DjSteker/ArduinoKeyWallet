@@ -20,7 +20,9 @@ SDA a A4
 Botones:
 
 Botón Arriba: un pin digital (D2)
+
 Botón Abajo: un pin digital (D3)
+
 Botón Enter: un pin digital (D4)
 
 
