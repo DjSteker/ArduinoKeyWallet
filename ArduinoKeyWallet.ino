@@ -175,7 +175,7 @@ void handleButtonPresses() {
   estadoAnteriorDown = estadoActualDown;
   estadoAnteriorEnter = estadoActualEnter;
 
-  delay(10);  // Pequeña pausa para evitar rebotes
+  delay(100);  // Pequeña pausa para evitar rebotes
 }
 
 void writeRecordsToEEPROM() {
