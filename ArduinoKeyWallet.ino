@@ -45,9 +45,9 @@ void setup() {
   display.clearDisplay();
 
   // Inicializar registros si la EEPROM está vacía
-  //if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
-  //  writeRecordsToEEPROM();
-  //}
+  if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
+    writeRecordsToEEPROM();
+  }
 
   // Cargar registros desde EEPROM
   readRecordsFromEEPROM();
@@ -57,7 +57,7 @@ void loop() {
   handleButtonPresses();
 
   display.clearDisplay();
-  display.setTextSize(1);
+  display.setTextSize(1); // Tamaño del texto
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
   display.print("Record ");
@@ -65,16 +65,25 @@ void loop() {
   display.print("/");
   display.print(NUM_RECORDS);
   display.print(currentMode == 1 ? " (Edit)" : "");
+
+  // Mostrar título y contenido en líneas separadas
   display.setCursor(0, 10);
-  display.print("Title: ");
+  display.print("Title:");
+  display.setCursor(0, 18);
   display.print(records[currentRecord].title);
-  display.setCursor(0, 20);
-  display.print("Content: ");
+
+  display.setCursor(0, 26);
+  display.print("Content:");
+  display.setCursor(0, 34);
   display.print(records[currentRecord].content);
-  
+
   if (currentMode == 1) {
     // Mostrar indicador de edición
-    display.fillRect(editCursor * 6, editingTitle ? 10 : 20, 6, 8, SSD1306_INVERSE);
+    if (editingTitle) {
+      display.fillRect(editCursor * 6, 18, 6, 8, SSD1306_INVERSE);
+    } else {
+      display.fillRect(editCursor * 6, 34, 6, 8, SSD1306_INVERSE);
+    }
   }
 
   display.display();
