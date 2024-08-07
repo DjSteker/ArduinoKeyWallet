@@ -1,11 +1,11 @@
 # ArduinoKeyWallet
-Gestor de contraseñas con Arduino y OLED  SSD1306 128x32 
+Gestor de contraseñas con Arduino y OLED  SSD1306 128x32  
 
-Materiales Necesarios
+Materiales Necesarios 
 
-Arduino Uno (o similar)
-Pantalla OLED SSD1306 128x32
-Tres botones
+Arduino Uno (o similar) 
+Pantalla OLED SSD1306 128x32 
+Tres botones 
 EEPROM integrada en el Arduino
 
 
