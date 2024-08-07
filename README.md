@@ -25,3 +25,8 @@ Botón Enter: un pin digital (D4)
 
 
 
+[Adafruit-GFX](https://github.com/adafruit/Adafruit-GFX-Library)
+
+[Adafruit_SSD1306](https://github.com/adafruit/Adafruit_SSD1306)
+
+
