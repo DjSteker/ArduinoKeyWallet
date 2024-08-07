@@ -78,9 +78,9 @@ void loop() {
   display.setCursor(0, 18);
   display.print(records[currentRecord].title);
 
+  //display.setCursor(0, 26);
+  //display.print("Content:");
   display.setCursor(0, 26);
-  display.print("Content:");
-  display.setCursor(0, 34);
   display.print(records[currentRecord].content);
 
   if (currentMode == 1) {
