@@ -11,9 +11,13 @@ EEPROM integrada en el Arduino
 
 Conexiones
 Pantalla OLED SSD1306:
+
 VCC a 5V
+
 GND a GND
+
 SCL a A5
+
 SDA a A4
 
 
