@@ -45,9 +45,9 @@ void setup() {
   display.clearDisplay();
 
   // Inicializar registros si la EEPROM está vacía
-  if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
-    writeRecordsToEEPROM();
-  }
+  //if (EEPROM.read(0) == 255) { // 255 indica EEPROM sin inicializar
+  //  writeRecordsToEEPROM();
+  //}
 
   // Cargar registros desde EEPROM
   readRecordsFromEEPROM();
