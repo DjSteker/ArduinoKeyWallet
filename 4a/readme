@@ -1,0 +1,54 @@
+### Descripción del funcionamiento del código
+
+El código proporcionado implementa un sistema de gestión de registros almacenados en la EEPROM utilizando un Arduino Leonardo ETH. Se utiliza una pantalla OLED para mostrar los datos y botones físicos para interactuar con el sistema. A continuación, se detalla cómo funciona cada parte:
+
+#### **Pantalla OLED**
+- La pantalla muestra información como el título y contenido de los registros, así como las opciones disponibles según el modo actual.
+- Se divide en cinco modos:
+  - **Vista (MODE_VIEW)**: Navega entre registros y permite entrar en modo edición.
+  - **Edición (MODE_EDIT)**: Permite modificar el título o el contenido de un registro.
+  - **Confirmación de guardado (MODE_CONFIRM_SAVE)**: Solicita al usuario confirmar si desea guardar los cambios.
+  - **Confirmación por tiempo agotado (MODE_TIMEOUT_CONFIRM)**: Aparece si no hay interacción durante un tiempo prolongado.
+  - **Mensaje de guardado (MODE_SAVED_MESSAGE)**: Indica que los cambios se han guardado correctamente.
+
+#### **Botones**
+- **BTN_UP**: Navega hacia adelante en modo vista, incrementa caracteres en modo edición, o confirma guardado en modo confirmación.
+- **BTN_DOWN**: Navega hacia atrás en modo vista, decrementa caracteres en modo edición, o cancela guardado en modo confirmación.
+- **BTN_ENTER**: Cambia entre modos o posiciones del cursor. Detecta pulsaciones largas para enviar datos al teclado o cambiar entre título y contenido.
+
+#### **EEPROM**
+- Los registros se almacenan con un título (32 caracteres) y contenido (128 caracteres). Cada registro incluye un timestamp para seguimiento.
+- La inicialización verifica si la EEPROM ya está configurada mediante una marca específica ('PWD').
+- Los datos se cargan desde la EEPROM al inicio y se guardan después de cada edición.
+
+#### **Manejo de eventos**
+- Se utiliza `millis()` para detectar pulsaciones largas y manejar tiempo de espera.
+- Los botones tienen lógica de debounce para evitar lecturas erróneas.
+
+---
+
+### Problemas detectados y propuestas de mejora
+
+1. **Problema con la EEPROM**:
+   - La EEPROM tiene una capacidad limitada (1024 bytes en el Leonardo). El código calcula el tamaño de cada bloque como `BLOCK_SIZE = RECORD_SIZE + sizeof(unsigned long)` (~165 bytes por registro), lo que supera la capacidad total si se almacenan 4 registros. Esto puede causar corrupción de datos.
+   - *Solución*: Reducir la longitud máxima del título y contenido o usar una memoria externa como una EEPROM I2C.
+
+2. **Inconsistencia en lectura/escritura EEPROM**:
+   - Según el funcionamiento documentado, la escritura en EEPROM puede tardar hasta 3.3 ms, lo que podría causar problemas si se intenta leer inmediatamente después sin esperar.
+   - *Solución*: Agregar retrasos tras las operaciones `EEPROM.write()` para garantizar estabilidad.
+
+3. **Manejo del botón ENTER**:
+   - La lógica de pulsaciones largas y cortas es compleja y puede ser confusa para el usuario. Además, no hay validación explícita para evitar conflictos entre modos.
+   - *Solución*: Simplificar las transiciones entre modos y usar indicadores visuales más claros en la pantalla.
+
+4. **Uso del teclado**:
+   - El envío de contraseñas al teclado podría ser inseguro si no se valida adecuadamente el contenido antes de enviarlo.
+   - *Solución*: Implementar validaciones para evitar caracteres no imprimibles o maliciosos.
+
+5. **Timeout excesivo**:
+   - El tiempo de espera configurado (`TIMEOUT_DURATION = 30000 ms`) podría ser demasiado largo para una interacción fluida.
+   - *Solución*: Reducir este valor a algo más razonable, como 10 segundos.
+
+6. **Visualización limitada**:
+   - El contenido largo se trunca a 20 caracteres en modo vista, lo cual podría ser insuficiente para algunos usuarios.
+   - *Solución*: Implementar desplazamiento automático del texto largo.
