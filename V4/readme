@@ -1,0 +1,71 @@
+
+### Configuración General
+- **Pantalla OLED**: 128x32 píxeles.
+- **Botones**: `BTN_UP` (Pin 10), `BTN_DOWN` (Pin 16) y `BTN_ENTER` (Pin 14).
+- **Constantes**:
+  - `TOTAL_RECORDS`: Número total de registros (4).
+  - `MAX_TITLE_LENGTH`: Longitud máxima del título (32).
+  - `MAX_CONTENT_LENGTH`: Longitud máxima del contenido (128).
+- **Estructura `Data`**: Contiene dos cadenas de texto (`header` y `details`).
+
+### Función `setup()`
+- Configura los pines de los botones como entradas con pull-up.
+- Inicializa la pantalla OLED y el teclado.
+- Si la EEPROM no está inicializada, ejecuta `initializeEEPROM()` para guardar datos de ejemplo en la EEPROM.
+- Carga los datos desde la EEPROM con `loadFromEEPROM()`.
+
+### Función `loop()`
+- Ejecuta tres funciones principales en cada iteración: `handleButtonEvents()`, `checkForTimeout()` y `refreshDisplay()`.
+
+### Función `handleButtonEvents()`
+- Lee el estado actual de los botones.
+- Comprueba si algún botón ha sido presionado y, dependiendo del estado del programa (`menuMode`), ejecuta diferentes acciones.
+
+### Funcionamiento de los Botones
+- **`BTN_UP` (arriba)**:
+  - **Modo Vista (`menuMode == 0`)**: Navega al siguiente registro.
+  - **Modo Edición (`menuMode == 1`)**:
+    - **Editando Título**: Incrementa el carácter en la posición del cursor.
+    - **Editando Contenido**: Incrementa el carácter en la posición del cursor.
+  - **Modo Confirmación de Guardado (`menuMode == 2`)**: Guarda los cambios y vuelve al modo vista.
+
+- **`BTN_DOWN` (abajo)**:
+  - **Modo Vista (`menuMode == 0`)**: Navega al registro anterior.
+  - **Modo Edición (`menuMode == 1`)**:
+    - **Editando Título**: Decrementa el carácter en la posición del cursor.
+    - **Editando Contenido**: Decrementa el carácter en la posición del cursor.
+  - **Modo Confirmación de Guardado (`menuMode == 2`)**: Cancela la confirmación de guardado y vuelve al modo edición.
+
+- **`BTN_ENTER` (enter)**:
+  - **Modo Vista (`menuMode == 0`)**: Imprime el contenido del registro activo usando el teclado.
+  - **Modo Edición (`menuMode == 1`)**:
+    - **Editando Título**: Mueve el cursor a la siguiente posición del título. Si se mantiene presionado por más de 3 segundos, pasa a editar el contenido.
+    - **Editando Contenido**: Mueve el cursor a la siguiente posición del contenido. Si se mantiene presionado por más de 3 segundos, entra en el menú de confirmación.
+  - **Modo Confirmación de Guardado (`menuMode == 2`)**: 
+    - **UP**: Confirma y guarda los cambios.
+    - **DOWN**: Cancela y vuelve al modo edición.
+
+### Modo Vista (menuMode == 0)
+- Muestra el número del registro activo, el título y el contenido del registro en la pantalla OLED.
+- Instrucciones para el usuario: "UP/DOWN:Nav ENTER:Edit".
+
+### Modo Edición (menuMode == 1)
+- Indica si se está editando el título o el contenido.
+- Muestra el título y el contenido del registro activo.
+- Muestra un cursor inverso en la posición actual del cursor.
+- **Si se mantiene presionado `BTN_ENTER` por más de 3 segundos**:
+  - **Editando Título**: Pasa a editar el contenido.
+  - **Editando Contenido**: Entra en el menú de confirmación.
+
+### Modo Confirmación de Guardado (menuMode == 2)
+- Solicita al usuario que confirme si desea guardar los cambios.
+- Opciones: "UP: Yes" para guardar, "DOWN: No" para cancelar.
+
+### Funciones de Almacenamiento
+- **`initializeEEPROM()`**: Inicializa la EEPROM con datos de ejemplo.
+- **`loadFromEEPROM()`**: Carga los datos de la EEPROM a la estructura `dataset`.
+- **`saveToEEPROM(int index)`**: Guarda el título y el contenido de un registro en la EEPROM.
+- **`readFromEEPROM(int index)`**: Lee el título y el contenido de un registro desde la EEPROM.
+
+### Función `saveChanges()`
+- Guarda los cambios del registro activo en la EEPROM
