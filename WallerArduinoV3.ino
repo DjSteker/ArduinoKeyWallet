@@ -240,14 +240,6 @@ void displaySaveConfirmation() {
   oled.println("DOWN: No");
 }
 
-void displayMessage(const char* message, int duration) {
-  oled.clearDisplay();
-  oled.setCursor(0, 0);
-  oled.println(message);
-  oled.display();
-  delay(duration);
-}
-
 void initializeEEPROM() {
   for (int i = 0; i < TOTAL_RECORDS; i++) {
     dataset[i].header = "Header " + String(i + 1);
