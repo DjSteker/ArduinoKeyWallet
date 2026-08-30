@@ -1,13 +1,13 @@
 
 // =============================================
 // KEYVAULT - GESTOR DE CONTRASEÑAS
-// Versión: v3.8
+// Versión: v3.8 (actualizada en mainBeta)
 // =============================================
 
 #define COMPILATION_NAME "KeyVault"
 #define COMPILATION_DATE __DATE__
 #define COMPILATION_TIME __TIME__
-#define COMPILATION_VERSION "v3.8"
+#define COMPILATION_VERSION "v3.8-mainBeta"
 
 // Librerías
 #include <Wire.h>
@@ -15,7 +15,7 @@
 #include <EEPROM.h>
 #include <Keyboard.h>
 #include <avr/pgmspace.h>
-#include "TramasMicros2.h"
+#include "TramasMicros3.h"
 
 // Configuración OLED
 #define OLED_W 128
@@ -64,12 +64,20 @@ static const uint8_t EE_ACTIVE = 6;
 static const uint8_t EE_STATE_CRC = 7;
 
 static const uint8_t EE_MAGIC_VAL[4] = { 'K', 'V', '3', '4' };
-static const uint8_t EE_VER_VAL = 1;
+static const uint8_t EE_VER_VAL = 2; // incrementada para mainBeta
 static const uint16_t EE_DATA_START = 16;
 static const uint16_t RECORD_EE_SIZE = (MAX_TITLE_LEN + 1) + (MAX_CONTENT_LEN + 1) + 1;
 
 static const char CHAR_MIN = 32;
 static const char CHAR_MAX = 126;
+
+// --------------------------------------------------
+// Opciones
+// --------------------------------------------------
+// Si quieres mantener el modo compatibilidad que envía carácter a carácter
+#ifndef SEND_CHAR_BY_CHAR
+#define SEND_CHAR_BY_CHAR 0
+#endif
 
 // -----------------------------------------------------------------------------
 // Estructuras
@@ -104,23 +112,27 @@ bool displaySleeping = false;
 bool refreshNeeded = true;
 bool showSavedMsg = false;  // Para mensaje de guardado
 
-TramaTiempo tramaDisplay;  // Para tareas periódicas
+TramaTiempo tramaDisplay;  // Para tareas periódicas (compatibilidad)
 
 Button bUp, bDown, bEnter;
 
 // -----------------------------------------------------------------------------
 // Funciones Auxiliares
 // -----------------------------------------------------------------------------
-static uint8_t crc8(const uint8_t *data, uint16_t len) {
-  uint8_t crc = 0xFF;
+
+static uint8_t crc8_update(uint8_t crc, const uint8_t *data, uint16_t len) {
   for (uint16_t i = 0; i < len; i++) {
     crc ^= data[i];
     for (uint8_t b = 0; b < 8; b++) {
-      if (crc & 0x80) crc = (crc << 1) ^ 0x31;
-      else crc = (crc << 1);
+      if (crc & 0x80) crc = (uint8_t)((crc << 1) ^ 0x31);
+      else crc = (uint8_t)(crc << 1);
     }
   }
   return crc;
+}
+
+static uint8_t crc8(const uint8_t *data, uint16_t len) {
+  return crc8_update(0xFF, data, len);
 }
 
 static uint8_t stateCRC(uint8_t ar) {
@@ -129,7 +141,10 @@ static uint8_t stateCRC(uint8_t ar) {
 }
 
 static uint8_t recordCRC(uint8_t idx) {
-  return crc8((uint8_t *)&dataset[idx], (MAX_TITLE_LEN + 1 + MAX_CONTENT_LEN + 1));
+  uint8_t crc = 0xFF;
+  crc = crc8_update(crc, (const uint8_t*)dataset[idx].header, MAX_TITLE_LEN + 1);
+  crc = crc8_update(crc, (const uint8_t*)dataset[idx].details, MAX_CONTENT_LEN + 1);
+  return crc;
 }
 
 static uint16_t recordAddr(uint8_t idx) {
@@ -167,15 +182,17 @@ static void writeStateToEEPROM() {
   EEPROM.update(EE_STATE_CRC, stateCRC(activeRecord));
 }
 
-static void loadRecord(uint8_t idx) {
+static void loadRecord(uint8_t idx, bool checkCRC = true) {
   uint16_t addr = recordAddr(idx);
   for (uint8_t i = 0; i <= MAX_TITLE_LEN; i++) dataset[idx].header[i] = (char)EEPROM.read(addr + i);
   uint16_t cAddr = addr + MAX_TITLE_LEN + 1;
   for (uint8_t i = 0; i <= MAX_CONTENT_LEN; i++) dataset[idx].details[i] = (char)EEPROM.read(cAddr + i);
   uint8_t storedCRC = EEPROM.read(cAddr + MAX_CONTENT_LEN + 1);
-  if (storedCRC != recordCRC(idx)) {
-    strcpy(dataset[idx].header, "Error Datos");
-    strcpy(dataset[idx].details, "Vacio");
+  if (checkCRC && storedCRC != recordCRC(idx)) {
+    strncpy(dataset[idx].header, "Error Datos", MAX_TITLE_LEN);
+    dataset[idx].header[MAX_TITLE_LEN] = '\0';
+    strncpy(dataset[idx].details, "Vacio", MAX_CONTENT_LEN);
+    dataset[idx].details[MAX_CONTENT_LEN] = '\0';
   }
   dataset[idx].dirty = false;
 }
@@ -197,11 +214,15 @@ static void sendChar(char c) {
 }
 
 static void sendRecord(uint8_t idx) {
+#if SEND_CHAR_BY_CHAR
   const char *s = dataset[idx].details;
   for (uint16_t i = 0; s[i] != '\0'; i++) {
     sendChar(s[i]);
     delay(10);
   }
+#else
+  Keyboard.print(dataset[idx].details);
+#endif
 }
 
 // -----------------------------------------------------------------------------
@@ -209,7 +230,7 @@ static void sendRecord(uint8_t idx) {
 // -----------------------------------------------------------------------------
 static void pollButton(Button &b, uint8_t pin) {
   bool raw = (digitalRead(pin) == LOW);
-  unsigned long now = micros();
+  unsigned long now = SystemTimer::getMicros();
   b.pressed = false;
   b.released = false;
 
@@ -235,7 +256,7 @@ static void pollButton(Button &b, uint8_t pin) {
 
 static bool checkRepeat(Button &b) {
   if (!b.state) return false;
-  unsigned long now = micros();
+  unsigned long now = SystemTimer::getMicros();
   unsigned long held = now - b.pressTime;
   if (held < T_REPT_START) return false;
 
@@ -253,12 +274,14 @@ static bool checkRepeat(Button &b) {
 // -----------------------------------------------------------------------------
 static void printWindowed(const char *str, uint8_t cursorP, bool showCursor) {
   uint8_t charsPerLine = OLED_W / 6;
+  uint8_t strLen = strlen(str);
   uint8_t winStart = (showCursor) ? ((cursorP / charsPerLine) * charsPerLine) : 0;
+  if (winStart > strLen) winStart = (strLen > charsPerLine) ? (strLen - charsPerLine + 1) : 0;
   for (uint8_t i = 0; i < charsPerLine; i++) {
     uint8_t pos = winStart + i;
-    if (str[pos] != '\0') display.write(str[pos]);
-    else if (showCursor && pos < activeFieldMax()) display.write(' ');
-    else display.write('\0');
+    if (pos < strLen) display.print(str[pos]);
+    else if (showCursor && pos == cursorP) display.print('_');
+    else display.print(' ');
   }
 }
 
@@ -318,10 +341,10 @@ static void updateDisplay() {
 }
 
 // -----------------------------------------------------------------------------
-// Funciones de TramasMicros2 por modo
+// Funciones de TramasMicros3 por modo
 // -----------------------------------------------------------------------------
 void tareaModoView() {
-  unsigned long now = micros();
+  unsigned long now = SystemTimer::getMicros();
   static unsigned long lastInteraction = 0;
 
   if (bUp.pressed || bDown.pressed || bEnter.pressed) {
@@ -353,18 +376,10 @@ void tareaModoView() {
   updateDisplay();
 }
 
-void tareaModoEdit() {
-  updateDisplay();
-}
-void tareaModoConfirm() {
-  updateDisplay();
-}
-void tareaModoConfig() {
-  updateDisplay();
-}
-void tareaModoUnsaved() {
-  updateDisplay();
-}
+void tareaModoEdit() { updateDisplay(); }
+void tareaModoConfirm() { updateDisplay(); }
+void tareaModoConfig() { updateDisplay(); }
+void tareaModoUnsaved() { updateDisplay(); }
 
 // -----------------------------------------------------------------------------
 // Lógica Principal
@@ -379,7 +394,7 @@ void wakeDisplay() {
 
 void handleInput() {
   if (showSavedMsg) return;
-  unsigned long now = micros();
+  unsigned long now = SystemTimer::getMicros();
 
   if ((bUp.pressed || bDown.pressed || bEnter.pressed) && displaySleeping) {
     wakeDisplay();
@@ -462,7 +477,7 @@ void handleInput() {
       if (bUp.pressed) {
         saveRecord(activeRecord);
         showSavedMsg = true;
-        tramaDisplay.fun(tareaModoConfirm);  // Usar función predefinida
+        tramaDisplay.fun(tareaModoConfirm);
         tramaDisplay.setInterval(100000);
         tramaDisplay.reset();
         menuMode = MODE_VIEW;
@@ -516,21 +531,6 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
 
-  // if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-  //   display.clearDisplay();
-  //   display.setTextSize(1);
-  //   display.setTextColor(SSD1306_WHITE);
-  //   display.setCursor(0, 0);
-  //   display.println(F(COMPILATION_NAME));
-  //   display.println(F(COMPILATION_VERSION));
-  //   display.display();
-  //   delay(1000);
-  //   Serial.println(F(" Pantalla iniciada"));
-  //   delay(500);
-  // } else {
-  //   Serial.println(F("no se ha detectado la pantalla"));
-  //   delay(300);
-  // }
   if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     Serial.println(F("✅ Pantalla OLED detectada y inicializada correctamente"));
     display.clearDisplay();
@@ -545,29 +545,12 @@ void setup() {
     delay(500);
   } else {
     Serial.println(F("❌ Error: Pantalla OLED no detectada"));
-    //while (1)
-    //  ;  // Detener el programa si falla
   }
-
-  // if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-  //     Serial.println(F("❌ Pantalla OLED NO DETECTADA en 0x3C"));
-  //     Serial.println(F("   Intentando con dirección 0x3D..."));
-
-  //     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3D)) {
-  //       Serial.println(F("❌ Pantalla OLED NO DETECTADA en 0x3D"));
-  //       Serial.println(F("   Verifica las conexiones I2C (SDA/SCL) y la alimentación."));
-  //       while (1);  // Detener el programa
-  //     } else {
-  //       Serial.println(F("✅ Pantalla OLED detectada en 0x3D"));
-  //       OLED_ADDR = 0x3D;  // Actualizar la dirección si se detectó en 0x3D
-  //     }
-  //   } else {
-  //     Serial.println(F("✅ Pantalla OLED detectada en 0x3C"));
-  //   }
 
   Keyboard.begin();
   randomSeed(analogRead(0));
 
+  // Comprobar magia EEPROM
   bool valid = true;
   for (uint8_t i = 0; i < 4; i++) {
     if (EEPROM.read(EE_MAGIC0 + i) != EE_MAGIC_VAL[i]) valid = false;
@@ -577,14 +560,27 @@ void setup() {
     activeRecord = 0;
     writeStateToEEPROM();
     for (uint8_t i = 0; i < TOTAL_RECORDS; i++) {
-      sprintf(dataset[i].header, "Record %d", i + 1);
-      sprintf(dataset[i].details, "Empty");
+      snprintf(dataset[i].header, MAX_TITLE_LEN + 1, "Record %d", i + 1);
+      snprintf(dataset[i].details, MAX_CONTENT_LEN + 1, "Empty");
       saveRecord(i);
     }
   } else {
+    uint8_t stored_ver = EEPROM.read(EE_VER);
     activeRecord = EEPROM.read(EE_ACTIVE);
     if (activeRecord >= TOTAL_RECORDS) activeRecord = 0;
-    loadRecord(activeRecord);
+
+    if (stored_ver != EE_VER_VAL) {
+      Serial.println(F("EEPROM: versión diferente detectada, realizando migración segura..."));
+      // Leer sin comprobar CRC y reescribir con nuevo CRC/formato
+      for (uint8_t i = 0; i < TOTAL_RECORDS; i++) {
+        loadRecord(i, false); // no comprobar CRC en migración
+        saveRecord(i);
+      }
+      writeStateToEEPROM();
+      loadRecord(activeRecord);
+    } else {
+      loadRecord(activeRecord);
+    }
   }
 
   tramaDisplay = TramaTiempo(100000, tareaModoView);
